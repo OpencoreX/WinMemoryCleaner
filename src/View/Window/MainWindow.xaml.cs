@@ -126,6 +126,12 @@ namespace WinMemoryCleaner
         private void OnCompactModeButtonClick(object sender, RoutedEventArgs e)
         {
             SetFocusTo(Optimize);
+
+            if (_viewModel != null && !_viewModel.TrayIconShowMemoryUsage)
+                _viewModel.TrayIconShowMemoryUsage = true;
+
+            CloseToTheNotificationArea();
+            App.ReleaseMemory();
         }
 
         /// <summary>

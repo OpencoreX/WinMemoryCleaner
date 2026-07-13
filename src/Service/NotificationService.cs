@@ -19,6 +19,7 @@ namespace WinMemoryCleaner
     {
         #region Fields
 
+        private static string _realtimeToolTipText;
         private int _currentRotationAngle;
         private Icon _currentIcon;
         private bool _disposed;
@@ -26,6 +27,19 @@ namespace WinMemoryCleaner
         private readonly NotifyIcon _notifyIcon;
         private readonly object _disposeLock = new object();
         private DispatcherTimer _rotationTimer;
+
+        #endregion
+
+        #region Properties
+
+        /// <summary>
+        /// Gets or sets the realtime tooltip text shown when hovering the tray icon.
+        /// </summary>
+        public static string RealtimeToolTipText
+        {
+            get { return _realtimeToolTipText; }
+            set { _realtimeToolTipText = value; }
+        }
 
         #endregion
 
@@ -410,9 +424,11 @@ namespace WinMemoryCleaner
                     text = Localizer.String.Optimizing.ToUpper(Localizer.Culture);
                 else
                 {
-                    text = Settings.ShowVirtualMemory
-                        ? string.Format(Localizer.Culture, "{0}: {1}%{2}{3}: {4}%", Localizer.String.PhysicalMemory, memory.Physical.Used.Percentage, Environment.NewLine, Localizer.String.VirtualMemory, memory.Virtual.Used.Percentage)
-                        : string.Format(Localizer.Culture, "{0}: {1}%", Localizer.String.PhysicalMemory, memory.Physical.Used.Percentage);
+                    text = !string.IsNullOrWhiteSpace(RealtimeToolTipText)
+                        ? RealtimeToolTipText
+                        : Settings.ShowVirtualMemory
+                            ? string.Format(Localizer.Culture, "{0}: {1}%{2}{3}: {4}%", Localizer.String.PhysicalMemory, memory.Physical.Used.Percentage, Environment.NewLine, Localizer.String.VirtualMemory, memory.Virtual.Used.Percentage)
+                            : string.Format(Localizer.Culture, "{0}: {1}%", Localizer.String.PhysicalMemory, memory.Physical.Used.Percentage);
                 }
                 
                 // Truncate to 63 characters

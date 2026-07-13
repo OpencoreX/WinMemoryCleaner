@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Management;
 using System.Reflection;
 using System.Threading;
 using System.Windows.Input;
@@ -33,6 +34,11 @@ namespace WinMemoryCleaner
         private string _optimizationProgressStep = Localizer.String.Optimize;
         private byte _optimizationProgressTotal = byte.MaxValue;
         private byte _optimizationProgressValue = byte.MinValue;
+        private PerformanceCounter _cpuUsageCounter;
+        private double _cpuUsage;
+        private double _gpuUsage;
+        private string _temperatureText = "N/A";
+        private string _videoAdapterName = "VGA";
         private string _selectedProcess;
         private ObservableCollection<ObservableItem<bool>> _trayIconItems;
 
@@ -85,6 +91,7 @@ namespace WinMemoryCleaner
                 Computer.OperatingSystem = _computerService.OperatingSystem;
                 UseHotkey = Settings.UseHotkey;
 
+                InitializeRealtimeCounters();
                 MonitorAsync();
             }
         }
@@ -285,6 +292,32 @@ namespace WinMemoryCleaner
         public bool CanRunOnStartup
         {
             get { return !WinService.IsInstalled; }
+        }
+
+        /// <summary>
+        /// Gets the realtime CPU usage.
+        /// </summary>
+        public double CpuUsage
+        {
+            get { return _cpuUsage; }
+            private set
+            {
+                _cpuUsage = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        /// <summary>
+        /// Gets the realtime GPU usage.
+        /// </summary>
+        public double GpuUsage
+        {
+            get { return _gpuUsage; }
+            private set
+            {
+                _gpuUsage = value;
+                RaisePropertyChanged();
+            }
         }
 
         /// <summary>
@@ -809,6 +842,27 @@ namespace WinMemoryCleaner
         }
 
         /// <summary>
+        /// Gets the realtime RAM usage.
+        /// </summary>
+        public double RamUsage
+        {
+            get { return Computer.Memory.Physical.Used.Percentage; }
+        }
+
+        /// <summary>
+        /// Gets the realtime temperature text.
+        /// </summary>
+        public string TemperatureText
+        {
+            get { return _temperatureText; }
+            private set
+            {
+                _temperatureText = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        /// <summary>
         /// Gets the processes.
         /// </summary>
         /// <value>
@@ -1076,6 +1130,19 @@ namespace WinMemoryCleaner
                 return CompactMode
                     ? string.Format(Localizer.Culture, "{0}{1}", Constants.App.Title, beta)
                     : string.Format(Localizer.Culture, "{0} {1}{2}", Constants.App.Title, string.Format(Localizer.Culture, Constants.App.VersionFormat, version.Major, version.Minor, version.Build), beta);
+            }
+        }
+
+        /// <summary>
+        /// Gets the primary video adapter name.
+        /// </summary>
+        public string VideoAdapterName
+        {
+            get { return _videoAdapterName; }
+            private set
+            {
+                _videoAdapterName = string.IsNullOrWhiteSpace(value) ? "VGA" : value;
+                RaisePropertyChanged();
             }
         }
 
@@ -1506,6 +1573,18 @@ namespace WinMemoryCleaner
                         // ignored
                     }
                 }
+
+                if (_cpuUsageCounter != null)
+                {
+                    try
+                    {
+                        _cpuUsageCounter.Dispose();
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
+                }
             }
         }
 
@@ -1690,6 +1769,16 @@ namespace WinMemoryCleaner
             {
                 Logger.Error(e);
             }
+
+            // Monitor realtime hardware telemetry.
+            try
+            {
+                ThreadPool.QueueUserWorkItem(_ => MonitorRealtimeTelemetry());
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e);
+            }
         }
 
         /// <summary>
@@ -1715,6 +1804,7 @@ namespace WinMemoryCleaner
 
                         RaisePropertyChanged(() => Computer);
                         RaisePropertyChanged(() => VirtualMemoryHeader);
+                        RaisePropertyChanged(() => RamUsage);
 
                         NotificationService.Update(Computer.Memory, IsOptimizationRunning);
                     }
@@ -1728,6 +1818,189 @@ namespace WinMemoryCleaner
                     Logger.Debug(e);
                 }
             }
+        }
+
+        /// <summary>
+        /// Initializes realtime hardware counters.
+        /// </summary>
+        private void InitializeRealtimeCounters()
+        {
+            try
+            {
+                _cpuUsageCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
+                _cpuUsageCounter.NextValue();
+            }
+            catch (Exception e)
+            {
+                Logger.Debug(e);
+            }
+
+            try
+            {
+                VideoAdapterName = GetPrimaryVideoAdapterName();
+            }
+            catch (Exception e)
+            {
+                Logger.Debug(e);
+            }
+        }
+
+        /// <summary>
+        /// Monitor realtime hardware telemetry.
+        /// </summary>
+        private void MonitorRealtimeTelemetry()
+        {
+            while (!_cancellationTokenSource.Token.IsCancellationRequested)
+            {
+                try
+                {
+                    UpdateRealtimeTelemetry();
+
+                    if (_cancellationTokenSource.Token.WaitHandle.WaitOne(1000))
+                        break;
+                }
+                catch (Exception e)
+                {
+                    Logger.Debug(e);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Updates realtime hardware telemetry.
+        /// </summary>
+        private void UpdateRealtimeTelemetry()
+        {
+            CpuUsage = ClampPercentage(ReadCpuUsage());
+            GpuUsage = ClampPercentage(ReadGpuUsage());
+            TemperatureText = ReadTemperatureText();
+            WinMemoryCleaner.NotificationService.RealtimeToolTipText = string.Format(Localizer.Culture, "CPU {0:0}% | RAM {1:0}% | TEMP {2}", CpuUsage, RamUsage, TemperatureText);
+            RaisePropertyChanged(() => RamUsage);
+            NotificationService.Update(Computer.Memory, IsOptimizationRunning);
+        }
+
+        /// <summary>
+        /// Reads CPU usage percentage.
+        /// </summary>
+        private double ReadCpuUsage()
+        {
+            try
+            {
+                return _cpuUsageCounter == null ? 0 : _cpuUsageCounter.NextValue();
+            }
+            catch (Exception e)
+            {
+                Logger.Debug(e);
+                return 0;
+            }
+        }
+
+        /// <summary>
+        /// Reads GPU usage percentage from Windows GPU performance counters when available.
+        /// </summary>
+        private static double ReadGpuUsage()
+        {
+            try
+            {
+                double usage = 0;
+
+                using (var searcher = new ManagementObjectSearcher("root\\CIMV2", "SELECT UtilizationPercentage, Name FROM Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine"))
+                using (var results = searcher.Get())
+                {
+                    foreach (ManagementObject item in results)
+                    {
+                        var name = Convert.ToString(item["Name"], Localizer.Culture);
+
+                        if (name != null && name.IndexOf("engtype_3D", StringComparison.OrdinalIgnoreCase) < 0)
+                            continue;
+
+                        var value = Convert.ToDouble(item["UtilizationPercentage"], Localizer.Culture);
+
+                        if (value > usage)
+                            usage = value;
+                    }
+                }
+
+                return usage;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        /// <summary>
+        /// Reads system temperature text from ACPI thermal zones when available.
+        /// </summary>
+        private static string ReadTemperatureText()
+        {
+            try
+            {
+                var temperatures = new List<double>();
+
+                using (var searcher = new ManagementObjectSearcher("root\\WMI", "SELECT CurrentTemperature FROM MSAcpi_ThermalZoneTemperature"))
+                using (var results = searcher.Get())
+                {
+                    foreach (ManagementObject item in results)
+                    {
+                        var raw = Convert.ToDouble(item["CurrentTemperature"], Localizer.Culture);
+                        var celsius = (raw / 10.0) - 273.15;
+
+                        if (celsius > 0 && celsius < 150)
+                            temperatures.Add(celsius);
+                    }
+                }
+
+                if (!temperatures.Any())
+                    return "N/A";
+
+                return string.Format(Localizer.Culture, "{0:0} C", temperatures.Max());
+            }
+            catch
+            {
+                return "N/A";
+            }
+        }
+
+        /// <summary>
+        /// Gets the primary video adapter name.
+        /// </summary>
+        private static string GetPrimaryVideoAdapterName()
+        {
+            try
+            {
+                using (var searcher = new ManagementObjectSearcher("root\\CIMV2", "SELECT Name FROM Win32_VideoController"))
+                using (var results = searcher.Get())
+                {
+                    foreach (ManagementObject item in results)
+                    {
+                        var name = Convert.ToString(item["Name"], Localizer.Culture);
+
+                        if (!string.IsNullOrWhiteSpace(name))
+                            return name;
+                    }
+                }
+            }
+            catch
+            {
+                // ignored
+            }
+
+            return "VGA";
+        }
+
+        /// <summary>
+        /// Clamps a percentage value.
+        /// </summary>
+        private static double ClampPercentage(double value)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value) || value < 0)
+                return 0;
+
+            if (value > 100)
+                return 100;
+
+            return value;
         }
 
         /// <summary>
