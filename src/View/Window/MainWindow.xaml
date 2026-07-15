@@ -500,6 +500,11 @@
                                      Maximum="100"
                                      Minimum="0"
                                      Value="{Binding Computer.Memory.Physical.Used.Percentage, Mode=OneWay}" />
+                        <CheckBox Content="{Binding Path=(local:Localizer.String).RunOnStartup}"
+                                  IsChecked="{Binding RunOnStartup}"
+                                  IsEnabled="{Binding CanRunOnStartup}"
+                                  Margin="0,6,0,0"
+                                  ToolTip="{Binding Path=(local:Localizer.String).RunOnStartup}" />
                     </StackPanel>
 
                     <Grid Grid.Column="2">

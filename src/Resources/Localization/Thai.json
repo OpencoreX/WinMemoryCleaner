@@ -51,7 +51,7 @@
   "ResetCommand": "การรีเซ็ตสำเร็จ",
   "ResetConfirmation": "คุณแน่ใจหรือไม่ว่าต้องการรีเซ็ตเป็นค่ากำหนดเริ่มต้น?",
   "RunOnLowPriority": "ทำงานด้วยลำดับความสำคัญต่ำ",
-  "RunOnStartup": "ทำงานเมื่อเริ่มต้นระบบ",
+  "RunOnStartup": "เปิดพร้อม Windows",
   "Schedule": "กำหนดการ",
   "Seconds": "วินาที",
   "Settings": "การตั้งค่า",

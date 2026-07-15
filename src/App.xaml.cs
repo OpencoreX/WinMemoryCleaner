@@ -744,9 +744,15 @@ namespace WinMemoryCleaner
                                 Logger.Error(string.Format(Localizer.Culture, "Fallback task creation also failed for '{0}'. Error: {1}", Constants.App.Title, errorMessage));
                         }
                     }
+
+                    // HKCU Run registry — reliable fallback (no admin), same as PowerOffFix
+                    StartupService.SetRegistryEnabled(true, Path);
+                    Logger.Information("Startup enabled: scheduled task and/or registry Run key.");
                 }
                 else
                 {
+                    StartupService.SetRegistryEnabled(false, Path);
+
                     var deleteStartInfo = new ProcessStartInfo("schtasks")
                     {
                         Arguments = string.Format(CultureInfo.InvariantCulture, @"/DELETE /F /TN ""{0}""", Constants.App.Title),

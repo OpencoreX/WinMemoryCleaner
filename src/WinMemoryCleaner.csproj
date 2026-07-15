@@ -158,6 +158,7 @@
     <Compile Include="Service\ComputerService.cs" />
     <Compile Include="Service\HotkeyService.cs" />
     <Compile Include="Service\NotificationService.cs" />
+    <Compile Include="Service\StartupService.cs" />
     <Compile Include="Test\CommandTests.cs" />
     <Compile Include="Test\ConverterTests.cs" />
     <Compile Include="Test\CoreTests.cs" />

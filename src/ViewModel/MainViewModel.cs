@@ -992,7 +992,7 @@ namespace WinMemoryCleaner
                        new ObservableItem<bool>(Localizer.String.CloseToTheNotificationArea, () => CloseToTheNotificationArea, value => CloseToTheNotificationArea = value),
                        new ObservableItem<bool>(Localizer.String.CreateStartMenuShortcut, () => CreateStartMenuShortcut, value => CreateStartMenuShortcut = value),
                        new ObservableItem<bool>(Localizer.String.RunOnLowPriority, () => RunOnLowPriority, value => RunOnLowPriority = value),
-                       new ObservableItem<bool>(Localizer.String.RunOnStartup, () => RunOnStartup, value => RunOnStartup = value),
+                       new ObservableItem<bool>(Localizer.String.RunOnStartup, () => RunOnStartup, value => RunOnStartup = value, CanRunOnStartup),
                        new ObservableItem<bool>(Localizer.String.ShowOptimizationNotifications, () => ShowOptimizationNotifications, value => ShowOptimizationNotifications = value),
                        new ObservableItem<bool>(Localizer.String.ShowVirtualMemory, () => ShowVirtualMemory, value => ShowVirtualMemory = value),
                        new ObservableItem<bool>(Localizer.String.StartMinimized, () => StartMinimized, value => StartMinimized = value)
